@@ -1,0 +1,55 @@
+from bs4 import BeautifulSoup
+import requests
+import spotipy
+from spotipy.oauth2 import SpotifyOAuth
+import os
+
+
+date = input("When is your birthday? (YYYY-MM-DD)\n")
+BILLBOARD_URL = f"https://www.billboard.com/charts/hot-100/{date}"
+
+SPOTIFY_CLIENT_ID = os.environ.get("SPOTIFY_CLIENT_ID")
+SPOTIFY_CLIENT_SECRET = os.environ.get("SPOTIFY_CLIENT_SECRET")
+SPOTIPY_REDIRECT_URI = "http://example.com"
+
+
+SPOTIFY_USERNAME = os.environ.get("SPOTIFY_USERNAME")
+print(SPOTIFY_CLIENT_ID)
+# ----------------------  Get Billboard 100 for date ------------------------- #
+
+response1 = requests.get(url=BILLBOARD_URL)
+website = response1.text
+
+soup = BeautifulSoup(website, "html.parser")
+titles = soup.find_all(name="span", class_="chart-element__information__song text--truncate color--primary")
+
+song_title_list = [title.text for title in titles]
+
+# ----------------------  Create Playlist ------------------------- #
+
+scope = "playlist-modify-private"
+
+sp = spotipy.Spotify(
+    auth_manager=SpotifyOAuth(
+        scope="playlist-modify-private",
+        redirect_uri="http://example.com",
+        client_id=SPOTIFY_CLIENT_ID,
+        client_secret=SPOTIFY_CLIENT_SECRET,
+        show_dialog=True,
+        cache_path="token.txt"
+    )
+)
+user_id = sp.current_user()["id"]
+
+
+track_uri_list = []
+for track in song_title_list:
+    search = sp.search(q=f"track:{track}", type="track")
+    track_uri = search["tracks"]["items"][0]["uri"]
+    track_uri_list.append(track_uri)
+
+playlist = sp.user_playlist_create(user=user_id, name=f"{date} Billboard 100", public=False, description="python")
+
+# ----------------------  Add songs to playlist ------------------------- #
+
+sp.playlist_add_items(playlist_id=playlist["id"], items=track_uri_list)
